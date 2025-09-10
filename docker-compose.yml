@@ -1,0 +1,56 @@
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: f1_postgres
+    environment:
+      POSTGRES_USER: f1_user
+      POSTGRES_PASSWORD: f1_pass
+      POSTGRES_DB: f1_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    container_name: f1_adminer
+    restart: always
+    ports:
+      - "8080:8080"
+
+  airflow:
+    image: apache/airflow:2.7.2-python3.11
+    container_name: f1_airflow
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__EXECUTOR: "LocalExecutor"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://f1_user:f1_pass@postgres:5432/f1_db
+    depends_on:
+      - postgres
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    ports:
+      - "8081:8080"
+    command: >
+      bash -c "airflow db init && 
+               airflow users create --username admin --password admin --firstname Denner --lastname Andreao --role Admin --email admin@example.com &&
+               airflow webserver & airflow scheduler"
+    restart: always
+
+  streamlit:
+    image: python:3.12-slim
+    container_name: f1_streamlit
+    working_dir: /app
+    volumes:
+      - ./streamlit:/app
+    ports:
+      - "8501:8501"
+    depends_on:
+      - postgres
+    command: bash -c "pip install --no-cache-dir pandas sqlalchemy psycopg2-binary streamlit requests && streamlit run app.py --server.port 8501 --server.address 0.0.0.0"
+
+volumes:
+  postgres_data:
